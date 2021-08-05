@@ -15,20 +15,18 @@ private let log = Logger.browserLogger
 /// The MediaPlayer is then passed to any controller that needs to use it.
 class PlaylistCarplayManager: NSObject {
     private var carPlayStatusObservers = [Any]()
-    private var contentManager = MPPlayableContentManager.shared()
+    private let contentManager = MPPlayableContentManager.shared()
     private var carPlayController: PlaylistCarplayController?
     private weak var mediaPlayer: MediaPlayer?
-    private(set) var isCarPlayAvailable: Bool = false
+    private(set) var isCarPlayAvailable = false
     
-    var currentlyPlayingItemIndex: Int = -1
+    var currentlyPlayingItemIndex = -1
     var currentPlaylistItem: PlaylistInfo?
     
     // There can only ever be one instance of this class
     // Because there can only be a single AudioSession and MediaPlayer
     // in use at any given moment
-    static let shared = {
-        PlaylistCarplayManager()
-    }()
+    static let shared = PlaylistCarplayManager()
     
     private override init() {
         super.init()

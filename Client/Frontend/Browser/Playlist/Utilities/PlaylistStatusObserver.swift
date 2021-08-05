@@ -13,7 +13,6 @@ import Data
 private let log = Logger.browserLogger
 
 class PlaylistPlayerStatusObserver: NSObject {
-    private var context = 0
     private weak var player: AVPlayer?
     private var item: AVPlayerItem?
     private var onStatusChanged: (AVPlayerItem.Status) -> Void

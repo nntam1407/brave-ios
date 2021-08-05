@@ -646,9 +646,12 @@ extension PlaylistViewController: VideoViewDelegate {
             
             self.player.load(asset: asset)
             .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { error in
-                if case .failure(let error) = error {
+            .sink(receiveCompletion: { status in
+                switch status {
+                case .failure(let error):
                     resolver(.failure(error))
+                case .finished:
+                    break
                 }
             }, receiveValue: { [weak self] isNewItem in
                 guard let self = self else {
@@ -714,8 +717,8 @@ extension PlaylistViewController: VideoViewDelegate {
                     PlaylistMediaStreamer.clearNowPlayingInfo()
                     completion?(.cancelled)
                 })
-                .sink(receiveCompletion: { error in
-                    switch error {
+                .sink(receiveCompletion: { status in
+                    switch status {
                     case .failure(let error):
                         PlaylistMediaStreamer.clearNowPlayingInfo()
                         completion?(.other(error))
@@ -748,8 +751,8 @@ extension PlaylistViewController: VideoViewDelegate {
             PlaylistMediaStreamer.clearNowPlayingInfo()
             completion?(.cancelled)
         })
-        .sink(receiveCompletion: { error in
-            switch error {
+        .sink(receiveCompletion: { status in
+            switch status {
             case .failure(let error):
                 PlaylistMediaStreamer.clearNowPlayingInfo()
                 completion?(error)
@@ -780,8 +783,8 @@ extension PlaylistViewController: VideoViewDelegate {
                     PlaylistMediaStreamer.clearNowPlayingInfo()
                     completion?(.cancelled)
                 })
-                .sink(receiveCompletion: { error in
-                    switch error {
+                .sink(receiveCompletion: { status in
+                    switch status {
                     case .failure(let error):
                         PlaylistMediaStreamer.clearNowPlayingInfo()
                         completion?(.other(error))

@@ -21,11 +21,13 @@ class PlaylistCarplayController: NSObject {
     private var assetStateObservers = Set<AnyCancellable>()
     private var assetLoadingStateObservers = Set<AnyCancellable>()
     private var playlistItemIds = [String]()
+    private weak var browser: BrowserViewController?
     
-    init(player: MediaPlayer, contentManager: MPPlayableContentManager) {
+    init(browser: BrowserViewController, player: MediaPlayer, contentManager: MPPlayableContentManager) {
+        self.browser = browser
         self.player = player
         self.contentManager = contentManager
-        self.mediaStreamer = PlaylistMediaStreamer(playerView: (UIApplication.shared.delegate as? AppDelegate)?.window ?? UIView())
+        self.mediaStreamer = PlaylistMediaStreamer(playerView: browser.view ?? UIView())
         super.init()
         
         observePlayerStates()
@@ -51,12 +53,6 @@ class PlaylistCarplayController: NSObject {
             UIApplication.shared.beginReceivingRemoteControlEvents()
         }
         #endif
-    }
-    
-    deinit {
-//        contentManager.delegate = nil
-//        contentManager.dataSource = nil
-//        contentManager.reloadData()
     }
     
     func observePlayerStates() {
@@ -340,9 +336,12 @@ extension PlaylistCarplayController {
             
             self.player.load(asset: asset)
             .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { error in
-                if case .failure(let error) = error {
+            .sink(receiveCompletion: { status in
+                switch status {
+                case .failure(let error):
                     resolver(.failure(error))
+                case .finished:
+                    break
                 }
             }, receiveValue: { [weak self] isNewItem in
                 guard let self = self else {
@@ -387,8 +386,8 @@ extension PlaylistCarplayController {
                     PlaylistMediaStreamer.clearNowPlayingInfo()
                     completion?(.cancelled)
                 })
-                .sink(receiveCompletion: { error in
-                    switch error {
+                .sink(receiveCompletion: { status in
+                    switch status {
                     case .failure(let error):
                         PlaylistMediaStreamer.clearNowPlayingInfo()
                         completion?(.other(error))
@@ -416,13 +415,15 @@ extension PlaylistCarplayController {
     }
     
     func streamItem(item: PlaylistInfo, completion: ((PlaylistMediaStreamer.PlaybackError) -> Void)?) {
+        assetStateObservers.removeAll()
+        
         mediaStreamer.loadMediaStreamingAsset(item)
         .handleEvents(receiveCancel: {
             PlaylistMediaStreamer.clearNowPlayingInfo()
             completion?(.cancelled)
         })
-        .sink(receiveCompletion: { error in
-            switch error {
+        .sink(receiveCompletion: { status in
+            switch status {
             case .failure(let error):
                 PlaylistMediaStreamer.clearNowPlayingInfo()
                 completion?(error)
@@ -451,8 +452,8 @@ extension PlaylistCarplayController {
                     PlaylistMediaStreamer.clearNowPlayingInfo()
                     completion?(.cancelled)
                 })
-                .sink(receiveCompletion: { error in
-                    switch error {
+                .sink(receiveCompletion: { status in
+                    switch status {
                     case .failure(let error):
                         PlaylistMediaStreamer.clearNowPlayingInfo()
                         completion?(.other(error))
@@ -489,36 +490,32 @@ extension PlaylistCarplayController {
     }
     
     func displayExpiredResourceError(item: PlaylistInfo?) {
-        let browserController = (UIApplication.shared.delegate as? AppDelegate)?.browserViewController
-        
         if let item = item {
             let alert = UIAlertController(title: Strings.PlayList.expiredAlertTitle,
                                           message: Strings.PlayList.expiredAlertDescription, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: Strings.PlayList.reopenButtonTitle, style: .default, handler: { _ in
+            alert.addAction(UIAlertAction(title: Strings.PlayList.reopenButtonTitle, style: .default, handler: { [weak self] _ in
+                guard let browser = self?.browser else { return }
                 
                 if let url = URL(string: item.pageSrc) {
-                    browserController?.dismiss(animated: true, completion: nil)
-                    browserController?.openURLInNewTab(url, isPrivileged: false)
+                    browser.dismiss(animated: true, completion: nil)
+                    browser.openURLInNewTab(url, isPrivileged: false)
                 }
             }))
             alert.addAction(UIAlertAction(title: Strings.cancelButtonTitle, style: .cancel, handler: nil))
-            browserController?.present(alert, animated: true, completion: nil)
+            browser?.present(alert, animated: true, completion: nil)
         } else {
             let alert = UIAlertController(title: Strings.PlayList.expiredAlertTitle,
                                           message: Strings.PlayList.expiredAlertDescription, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: Strings.OKString, style: .default, handler: nil))
-            browserController?.present(alert, animated: true, completion: nil)
+            browser?.present(alert, animated: true, completion: nil)
         }
     }
     
     func displayLoadingResourceError() {
-        let browserController = (UIApplication.shared.delegate as? AppDelegate)?.browserViewController
-        
         let alert = UIAlertController(
             title: Strings.PlayList.sorryAlertTitle, message: Strings.PlayList.loadResourcesErrorAlertDescription, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: Strings.PlayList.okayButtonTitle, style: .default, handler: nil))
-        
-        browserController?.present(alert, animated: true, completion: nil)
+        browser?.present(alert, animated: true, completion: nil)
     }
 }
 

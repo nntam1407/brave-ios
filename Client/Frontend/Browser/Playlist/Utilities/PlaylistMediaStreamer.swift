@@ -165,7 +165,8 @@ class PlaylistMediaStreamer {
             return request
         }()
         
-        URLSession(configuration: .ephemeral).dataTask(with: request) { data, response, error in
+        let session = URLSession(configuration: .ephemeral)
+        session.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error {
                     log.error("Error fetching MimeType for playlist item: \(url) - \(error)")
@@ -185,5 +186,6 @@ class PlaylistMediaStreamer {
                 completion(nil)
             }
         }.resume()
+        session.finishTasksAndInvalidate()
     }
 }
