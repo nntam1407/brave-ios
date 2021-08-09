@@ -22,6 +22,7 @@ class PlaylistCarplayManager: NSObject {
     
     var currentlyPlayingItemIndex = -1
     var currentPlaylistItem: PlaylistInfo?
+    var browserController: BrowserViewController?
     
     // There can only ever be one instance of this class
     // Because there can only be a single AudioSession and MediaPlayer
@@ -65,7 +66,7 @@ class PlaylistCarplayManager: NSObject {
         // If there is no media player, create one,
         // pass it to the car-play controller
         let mediaPlayer = self.mediaPlayer ?? MediaPlayer()
-        let carPlayController = PlaylistCarplayController(player: mediaPlayer, contentManager: contentManager)
+        let carPlayController = PlaylistCarplayController(browser: browserController, player: mediaPlayer, contentManager: contentManager)
         self.mediaPlayer = mediaPlayer
         return carPlayController
     }

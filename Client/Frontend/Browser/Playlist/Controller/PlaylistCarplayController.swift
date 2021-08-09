@@ -23,11 +23,11 @@ class PlaylistCarplayController: NSObject {
     private var playlistItemIds = [String]()
     private weak var browser: BrowserViewController?
     
-    init(browser: BrowserViewController, player: MediaPlayer, contentManager: MPPlayableContentManager) {
+    init(browser: BrowserViewController?, player: MediaPlayer, contentManager: MPPlayableContentManager) {
         self.browser = browser
         self.player = player
         self.contentManager = contentManager
-        self.mediaStreamer = PlaylistMediaStreamer(playerView: browser.view ?? UIView())
+        self.mediaStreamer = PlaylistMediaStreamer(playerView: browser?.view ?? UIView())
         super.init()
         
         observePlayerStates()

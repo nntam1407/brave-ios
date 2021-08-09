@@ -407,7 +407,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UIViewControllerRestorati
         
         AdblockResourceDownloader.shared.startLoading()
         PlaylistManager.shared.restoreSession()
-        carPlayManager = PlaylistCarplayManager.shared
+        carPlayManager = PlaylistCarplayManager.shared.then {
+            $0.browserController = browserViewController
+        }
       
         return shouldPerformAdditionalDelegateHandling
     }
