@@ -28,13 +28,29 @@ private enum DisplayMode {
 class PlaylistViewController: UIViewController {
     
     // MARK: Properties
+    
+    var initialItem: PlaylistInfo?
+    var initialItemPlaybackOffset = 0.0
 
     private let splitController = UISplitViewController()
     private let listController = ListController()
     private let detailController = DetailController()
     
+    func initiatePlaybackOfLastPlayedItem() {
+        if let initialItem = initialItem {
+            Preferences.Playlist.lastPlayedItemUrl.value = initialItem.pageSrc
+            Preferences.Playlist.lastPlayedItemTime.value = initialItemPlaybackOffset
+            listController.initiatePlaybackOfLastPlayedItem()
+        }
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        if let initialItem = initialItem {
+            Preferences.Playlist.lastPlayedItemUrl.value = initialItem.pageSrc
+            Preferences.Playlist.lastPlayedItemTime.value = initialItemPlaybackOffset
+        }
         
         overrideUserInterfaceStyle = .dark
         
@@ -237,6 +253,10 @@ private class ListController: UIViewController {
         setup()
         setupNotifications()
 
+        fetchResults()
+    }
+    
+    func initiatePlaybackOfLastPlayedItem() {
         fetchResults()
     }
     
@@ -625,7 +645,8 @@ extension ListController: UITableViewDataSource {
                                                mimeType: item.mimeType,
                                                duration: duration.seconds,
                                                detected: item.detected,
-                                               dateAdded: item.dateAdded)
+                                               dateAdded: item.dateAdded,
+                                               tagId: item.tagId)
 
                     PlaylistItem.updateItem(newItem) {
                         completion(duration.seconds, asset)

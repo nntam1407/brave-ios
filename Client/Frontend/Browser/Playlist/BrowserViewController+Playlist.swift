@@ -7,81 +7,145 @@ import Foundation
 import Data
 import Shared
 import BraveShared
+import BraveUI
 
 private let log = Logger.browserLogger
 
 extension BrowserViewController: PlaylistHelperDelegate {
-    func showPlaylistAlert(_ alertController: UIAlertController) {
-        self.present(alertController, animated: true)
+    
+    func updatePlaylistURLBar(tab: Tab?, state: PlaylistItemAddedState, item: PlaylistInfo?) {
+        openInPlayListActivity(info: state == .existingItem ? item : nil)
+        addToPlayListActivity(info: state == .newItem ? item : nil, itemDetected: state == .newItem)
+        
+        switch state {
+        case .none:
+            topToolbar.menuButton.removeBadge(.playlist, animated: true)
+            toolbar?.menuButton.removeBadge(.playlist, animated: true)
+        case .newItem, .existingItem:
+            topToolbar.menuButton.addBadge(.playlist, animated: true)
+            toolbar?.menuButton.addBadge(.playlist, animated: true)
+        }
+        
+        if let selectedTab = tabManager.selectedTab {
+            selectedTab.playlistItemState = state
+            selectedTab.playlistItem = item
+            
+            let shouldShowPlaylistURLBarButton = tab?.url?.isPlaylistSupportedSiteURL ?? false
+            let playlistButton = topToolbar.locationView.playlistButton
+            switch state {
+            case .none:
+                playlistButton.buttonState = .none
+            case .newItem:
+                playlistButton.buttonState = shouldShowPlaylistURLBarButton ? .addToPlaylist : .none
+            case .existingItem:
+                playlistButton.buttonState = shouldShowPlaylistURLBarButton ? .addedToPlaylist : .none
+            }
+        } else {
+            topToolbar.locationView.playlistButton.buttonState = .none
+            topToolbar.menuButton.removeBadge(.playlist, animated: true)
+            toolbar?.menuButton.removeBadge(.playlist, animated: true)
+        }
     }
     
-    func showPlaylistToast(info: PlaylistInfo, itemState: PlaylistItemAddedState) {
+    func showPlaylistPopover(tab: Tab?, state: PlaylistPopoverState) {
         guard Preferences.Playlist.showToastForAdd.value,
-              let selectedTab = tabManager.selectedTab,
-              selectedTab.url?.isPlaylistSupportedSiteURL == true else {
+              let selectedTab = tabManager.selectedTab else {
             return
         }
         
-        if let toast = playlistToast {
-            toast.item = info
-            return
-        }
-        
-        // Item requires the user to choose whether or not to add it to playlists
-        let toast = PlaylistToast(item: info, state: itemState, completion: { [weak self] buttonPressed in
-            guard let self = self, let item = self.playlistToast?.item else { return }
-            
-            switch itemState {
-            // Item requires user action to add it to playlists
-            case .pendingUserAction:
-                if buttonPressed {
-                    // Update playlist with new items..
+        if state == .addToPlaylist {
+            if Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value {
+                Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value = false
+            } else {
+                if let item = selectedTab.playlistItem {
+                    UIImpactFeedbackGenerator(style: .medium).bzzt()
+                    
+                    // Update playlist with new items.
                     self.addToPlaylist(item: item) { [weak self] didAddItem in
                         guard let self = self else { return }
                         
-                        log.debug("Playlist Item Added")
-                        self.playlistToast = nil
-                        
                         if didAddItem {
-                            self.showPlaylistToast(info: item, itemState: .added)
-                            UIImpactFeedbackGenerator(style: .medium).bzzt()
+                            self.updatePlaylistURLBar(tab: tab, state: .existingItem, item: item)
                         }
                     }
-                } else {
-                    self.playlistToast = nil
                 }
+                return
+            }
+        }
+        
+        let popover = PopoverController(contentController: PlaylistPopoverViewController(state: state).then {
+            $0.rootView.onPrimaryButtonPressed = { [weak self] in
+                guard let self = self,
+                      let item = selectedTab.playlistItem else { return }
                 
-            // Item already exists in playlist, so ask them if they want to view it there
-            // Item was added to playlist by the user, so ask them if they want to view it there
-            case .added, .existing:
-                if buttonPressed {
-                    self.openPlaylist()
+                switch state {
+                case .addToPlaylist:
+                    // Dismiss popover
                     UIImpactFeedbackGenerator(style: .medium).bzzt()
+                    self.dismiss(animated: true, completion: nil)
+                    
+                    // Update playlist with new items.
+                    self.addToPlaylist(item: item) { [weak self] didAddItem in
+                        guard let self = self else { return }
+                        
+                        if didAddItem {
+                            self.updatePlaylistURLBar(tab: tab, state: .existingItem, item: item)
+                        }
+                    }
+                    
+                case .addedToPlaylist:
+                    // Dismiss popover
+                    UIImpactFeedbackGenerator(style: .medium).bzzt()
+                    
+                    self.dismiss(animated: true) {
+                        DispatchQueue.main.async {
+                            if let webView = tab?.webView {
+                                PlaylistHelper.getCurrentTime(webView: webView, nodeTag: item.tagId) { [weak self] currentTime in
+                                    self?.openPlaylist(item: item, playbackOffset: currentTime)
+                                }
+                            } else {
+                                self.openPlaylist(item: item, playbackOffset: 0.0)
+                            }
+                        }
+                    }
                 }
+            }
+            
+            $0.rootView.onSecondaryButtonPressed = {
+                guard let item = selectedTab.playlistItem else { return }
+                UIImpactFeedbackGenerator(style: .medium).bzzt()
                 
-                self.playlistToast = nil
+                self.dismiss(animated: true) {
+                    DispatchQueue.main.async {
+                        if PlaylistManager.shared.delete(item: item) {
+                            self.updatePlaylistURLBar(tab: tab, state: .newItem, item: item)
+                        }
+                    }
+                }
             }
         })
+        popover.present(from: topToolbar.locationView.playlistButton, on: self)
+    }
+    
+    func openPlaylist(item: PlaylistInfo?, playbackOffset: Double) {
+        let isRestoredController = (UIApplication.shared.delegate as? AppDelegate)?.playlistRestorationController != nil
         
-        playlistToast = toast
-        let duration = itemState == .pendingUserAction ? 10 : 5
-        show(toast: toast, afterWaiting: .milliseconds(250), duration: .seconds(duration))
-    }
-    
-    func dismissPlaylistToast(animated: Bool) {
-        playlistToast?.dismiss(false, animated: animated)
-    }
-    
-    private func openPlaylist() {
-        let playlistController = (UIApplication.shared.delegate as? AppDelegate)?.playlistRestorationController ?? PlaylistViewController()
+        let playlistController = (UIApplication.shared.delegate as? AppDelegate)?.playlistRestorationController as? PlaylistViewController ?? PlaylistViewController()
         playlistController.modalPresentationStyle = .fullScreen
+        
+        playlistController.initialItem = item
+        playlistController.initialItemPlaybackOffset = playbackOffset
         
         /// Donate Open Playlist Activity for suggestions
         let openPlaylist = ActivityShortcutManager.shared.createShortcutActivity(type: .openPlayList)
         self.userActivity = openPlaylist
         openPlaylist.becomeCurrent()
 
-        present(playlistController, animated: true)
+        present(playlistController, animated: true) {
+            if isRestoredController {
+                playlistController.initiatePlaybackOfLastPlayedItem()
+            }
+        }
     }
     
     func addToPlayListActivity(info: PlaylistInfo?, itemDetected: Bool) {
