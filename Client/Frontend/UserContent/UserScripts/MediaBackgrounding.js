@@ -35,7 +35,28 @@ window.__firefox__.includeOnce("$<MediaBackgrounding>", function() {
             visibilityState_Set.call(this, value);
         }
     });
-
+    
+    Object.defineProperty(HTMLVideoElement.prototype, 'userHitPause', {
+        enumerable: false,
+        configurable: false,
+        writable: true,
+        value: false
+    });
+    
+    Object.defineProperty(HTMLVideoElement.prototype, 'pauseListener', {
+        enumerable: false,
+        configurable: false,
+        writable: true,
+        value: false
+    });
+    
+    Object.defineProperty(HTMLVideoElement.prototype, 'presentationModeListener', {
+        enumerable: false,
+        configurable: false,
+        writable: true,
+        value: false
+    });
+    
     var pauseControl = HTMLVideoElement.prototype.pause;
     HTMLVideoElement.prototype.pause = function() {
         this.userHitPause = true;
@@ -48,97 +69,75 @@ window.__firefox__.includeOnce("$<MediaBackgrounding>", function() {
         return playControl.call(this);
     }
     
-    HTMLVideoElement.prototype.addPauseListener = function() {
-        if (!this.pauseListener) {
-            this.pauseListener = true;
+    function addListeners(element) {
+        if (!element.pauseListener) {
+            element.pauseListener = true;
+            element.visibilityState = visibilityState_Get.call(document);
             
-            this.addEventListener("pause", function(e) {
-                if (!this.userHitPause && visibilityState_Get.call(document) == "visible") {
+            document.addEventListener("visibilitychange", function(e) {
+                element.visibilityState = visibilityState_Get.call(document);
+            }, false);
+            
+            element.addEventListener("pause", function(e) {
+                if (!element.userHitPause && visibilityState_Get.call(document) == "visible") {
                     var onVisibilityChanged = (e) => {
                         document.removeEventListener("visibilitychange", onVisibilityChanged);
-                        
-                        if (visibilityState_Get.call(document) != "visible" && !this.ended) {
-                            playControl.call(this);
+
+                        if (visibilityState_Get.call(document) != "visible" && !element.ended) {
+                            playControl.call(element);
                         }
                     };
-                    
+
                     document.addEventListener("visibilitychange", onVisibilityChanged);
-                    
+
                     setTimeout(function() {
                         document.removeEventListener("visibilitychange", onVisibilityChanged);
                     }, 2000);
+                } else {
+                    if (!element.userHitPause && element.visibilityState == "visible" && !element.ended) {
+                        playControl.call(element);
+                    }
                 }
             }, false);
         }
         
-        if (!this.presentationModeListener) {
-            this.presentationModeListener = true;
+        if (!element.presentationModeListener) {
+            element.presentationModeListener = true;
             
-            this.addEventListener('webkitpresentationmodechanged', function(e) {
+            element.addEventListener('webkitpresentationmodechanged', function(e) {
                 e.stopPropagation();
             }, true);
-
-            setTimeout(() => {
-                this.webkitSetPresentationMode('picture-in-picture');
-            }, 3000);
         }
     }
     
-    function setupListener() {
-        var m_css = document.createElement("style");
-        m_css.type = "text/css";
-        m_css.innerHTML = `.onElementInserted {
-                               animation: __elementInserted 0.001s !important;
-                               -o-animation: __elementInserted 0.001s !important;
-                               -ms-animation: __elementInserted 0.001s !important;
-                               -moz-animation: __elementInserted 0.001s !important;
-                               -webkit-animation: __elementInserted 0.001s !important;
-                           }
-        
-                           @keyframes __elementInserted {
-                               from { opacity: 0.99; }
-                               to { opacity: 1; }
-                           }
-                           @-moz-keyframes __elementInserted {
-                               from { opacity: 0.99; }
-                               to { opacity: 1; }
-                           }
-                           @-webkit-keyframes __elementInserted {
-                               from { opacity: 0.99; }
-                               to { opacity: 1; }
-                           }
-                           @-ms-keyframes __elementInserted {
-                               from { opacity: 0.99; }
-                               to { opacity: 1; }
-                           }
-                           @-o-keyframes __elementInserted {
-                               from { opacity: 0.99; }
-                               to { opacity: 1; }
-                           }`;
-        document.body.appendChild(m_css);
-
-        insertion_event = function(event) {
-            if (event.animationName == '__elementInserted') {
-                event.target.className = event.target.className.replace(/\bonElementInserted\b/,'');
-                document.dispatchEvent(new CustomEvent('elementInserted', {'target': event.target}));
-            }
-        }
-
-        document.addEventListener('animationstart', insertion_event, false);
-        document.addEventListener('MSAnimationStart', insertion_event, false);
-        document.addEventListener('webkitAnimationStart', insertion_event, false);
+    const queue = [];
+    function onMutation() {
+      for (const mutations of queue) {
+          mutations.addedNodes.forEach(function (node) {
+              if (node.constructor.name == 'HTMLVideoElement') {
+                  addListeners(node);
+              }
+          });
+      }
+      queue.length = 0;
     }
     
-    window.onload = function() {
-        setupListener();
-        document.addEventListener('elementInserted', function(e) {
-            if (e.target.constructor.name == 'HTMLVideoElement') {
-                e.target.addPauseListener();
-            }
-        });
-        
-        document.querySelectorAll('video').forEach((e) => {
-            e.addPauseListener();
-        });
-    };
+    var observer = new MutationObserver(function(mutations) {
+        if (!queue.length) {
+            // Debounce the mutation for performance
+            // with setTimeout | requestIdleCallback | requestAnimationFrame
+            // requestIdleCallback isn't available on iOS yet.
+            requestAnimationFrame(onMutation);
+        }
+        queue.push(...mutations);
+    });
+    
+    observer.observe(document, {
+      childList: true,
+      attributes: false,
+      characterData: false,
+      subtree: true,
+      attributeOldValue: false,
+      characterDataOldValue: false
+    });
 });
