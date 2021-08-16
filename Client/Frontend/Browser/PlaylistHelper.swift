@@ -21,6 +21,7 @@ enum PlaylistItemAddedState {
 protocol PlaylistHelperDelegate: NSObject {
     func updatePlaylistURLBar(tab: Tab?, state: PlaylistItemAddedState, item: PlaylistInfo?)
     func showPlaylistPopover(tab: Tab?, state: PlaylistPopoverState)
+    func showPlaylistOnboarding(tab: Tab?)
 }
 
 class PlaylistHelper: NSObject, TabContentScript {
@@ -100,6 +101,7 @@ class PlaylistHelper: NSObject, TabContentScript {
                         self.updateItem(item)
                     } else if item.detected {
                         delegate.updatePlaylistURLBar(tab: self.tab, state: .newItem, item: item)
+                        delegate.showPlaylistOnboarding(tab: self.tab)
                     } else {
                         delegate.updatePlaylistURLBar(tab: self.tab, state: .newItem, item: item)
                         delegate.showPlaylistPopover(tab: self.tab, state: .addToPlaylist)

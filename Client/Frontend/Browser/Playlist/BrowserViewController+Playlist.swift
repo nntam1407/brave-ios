@@ -54,9 +54,7 @@ extension BrowserViewController: PlaylistHelperDelegate {
         }
         
         if state == .addToPlaylist {
-            if Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value {
-                Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value = false
-            } else {
+            if !shouldShowPlaylistOnboardingThisSession {
                 if let item = selectedTab.playlistItem {
                     UIImpactFeedbackGenerator(style: .medium).bzzt()
                     
@@ -125,6 +123,15 @@ extension BrowserViewController: PlaylistHelperDelegate {
             }
         })
         popover.present(from: topToolbar.locationView.playlistButton, on: self)
+    }
+    
+    func showPlaylistOnboarding(tab: Tab?) {
+        if Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value < 2 && shouldShowPlaylistOnboardingThisSession {
+            Preferences.Playlist.showAddToPlaylistURLBarOnboarding.value += 1
+            showPlaylistPopover(tab: tab, state: .addToPlaylist)
+        }
+        
+        shouldShowPlaylistOnboardingThisSession = false
     }
     
     func openPlaylist(item: PlaylistInfo?, playbackOffset: Double) {

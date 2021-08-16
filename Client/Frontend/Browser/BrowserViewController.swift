@@ -984,6 +984,9 @@ class BrowserViewController: UIViewController {
     
     /// Whether or not to show the Default Browser intro callout. It's set at app launch in AppDelegate
     var shouldShowIntroScreen = false
+    
+    /// Whether or not to show the playlist onboarding callout this session
+    var shouldShowPlaylistOnboardingThisSession = true
 
     private func presentDefaultBrowserIntroScreen() {
         if Preferences.DebugFlag.skipNTPCallouts == true { return }
