@@ -26,11 +26,11 @@ extension BrowserViewController: PlaylistHelperDelegate {
             toolbar?.menuButton.addBadge(.playlist, animated: true)
         }
         
-        if let selectedTab = tabManager.selectedTab {
-            selectedTab.playlistItemState = state
-            selectedTab.playlistItem = item
+        if let tab = tab, tab === tabManager.selectedTab {
+            tab.playlistItemState = state
+            tab.playlistItem = item
             
-            let shouldShowPlaylistURLBarButton = tab?.url?.isPlaylistSupportedSiteURL ?? false
+            let shouldShowPlaylistURLBarButton = tab.url?.isPlaylistSupportedSiteURL ?? false
             let playlistButton = topToolbar.locationView.playlistButton
             switch state {
             case .none:
